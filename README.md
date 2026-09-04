@@ -11,7 +11,7 @@ Package `ai.protomolt.parse.pdf.v1`:
   capabilities so absence is stated instead of inferred from an empty stream.
 - `proto/ai/protomolt/parse/pdf/v1/pdf_backend_service.proto` --
   `PdfBackendService`: `Probe`, `Parse` (server stream), `Render`
-  (server stream).
+  (server stream), `GetServiceInfo`.
 
 ## Content-addressed document handshake
 
@@ -40,6 +40,16 @@ Flow:
 `data` empty with `sha256` absent is invalid (`INVALID_ARGUMENT`). Cache
 bounds, eviction, and lifetime are server-private: the contract promises
 only the verdict, never that bytes are retained.
+
+## Service info and the demo shell
+
+`GetServiceInfo` reports the backend's identity (`backend_name`,
+`engine_version`, `build_version`) without loading a document, so a caller
+can label a backend before ever probing one. The response also carries the
+`UiInfo` block (`title`, `path`, `description`) every service in the
+ai-pipestream grpc-services family advertises, letting the demo shell
+(`gRParse/examples/web-demo`) mount the service's web UI under a tab. The
+block has the same shape in every repo; keep it that way.
 
 ## Consumers
 
