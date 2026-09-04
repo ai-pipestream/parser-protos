@@ -13,6 +13,34 @@ Package `ai.protomolt.parse.pdf.v1`:
   `PdfBackendService`: `Probe`, `Parse` (server stream), `Render`
   (server stream).
 
+## Content-addressed document handshake
+
+Callers like a consensus-mode orchestrator hit every backend once per page,
+which would re-upload the full document bytes inside `PdfDocument.data` on
+every call. The handshake avoids that: the client sends
+`PdfDocument.sha256` (lowercase hex SHA-256 of `data`) and the bytes only
+when the server does not already have them.
+
+Flow:
+
+1. First call for a document: `data` populated, `sha256` set. The server
+   verifies the hash, may cache the bytes under it, and proceeds.
+2. Later calls (`Probe`, `Parse`, `Render` alike): `data` empty, `sha256`
+   set. The server serves the request from its cache; a server that has
+   never seen those bytes answers `LOAD_STATUS_BYTES_REQUIRED` in the typed
+   load status (`BackendCapabilities.load_status` for `Probe` and the
+   `Parse` header, `RenderResponse.head.load_status` for `Render`).
+3. `LOAD_STATUS_BYTES_REQUIRED` is a cache miss verdict, not a document
+   defect. The client retries exactly once with `data` populated before
+   treating it as an error.
+4. `LOAD_STATUS_HASH_MISMATCH` means `data` and `sha256` were both present
+   and the bytes do not hash to the given value; that is a client bug, not
+   a retry case.
+
+`data` empty with `sha256` absent is invalid (`INVALID_ARGUMENT`). Cache
+bounds, eviction, and lifetime are server-private: the contract promises
+only the verdict, never that bytes are retained.
+
 ## Consumers
 
 - [gRParse](https://git.rokkon.com/ai-pipestream/gRParse) builds from its
