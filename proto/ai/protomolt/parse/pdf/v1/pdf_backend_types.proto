@@ -866,6 +866,11 @@ message DocMeta {
   bool tagged = 13;
   // Whether the document is linearized for progressive loading.
   optional bool linearized = 14;
+  // The catalog /Lang entry: the document's natural language as the PDF
+  // declares it (a BCP 47 tag such as "en-US"), verbatim. Absent when the
+  // catalog has no /Lang or the engine cannot read it; a per-node override
+  // rides on StructNode.lang.
+  optional string lang = 15;
 }
 
 // Encryption scheme and permissions. Sent only for encrypted documents;
