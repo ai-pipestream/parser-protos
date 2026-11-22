@@ -11,7 +11,8 @@ Package `ai.protomolt.parse.pdf.v1`:
   capabilities so absence is stated instead of inferred from an empty stream.
 - `proto/ai/protomolt/parse/pdf/v1/pdf_backend_service.proto` --
   `PdfBackendService`: `Probe`, `Parse` (server stream), `Render`
-  (server stream), `GetServiceInfo`.
+  (server stream), `GetServiceInfo`, and `ParseStream` (bidirectional:
+  chunked upload, then parse and render requests on the same stream).
 
 ## Content-addressed document handshake
 
@@ -40,6 +41,46 @@ Flow:
 `data` empty with `sha256` absent is invalid (`INVALID_ARGUMENT`). Cache
 bounds, eviction, and lifetime are server-private: the contract promises
 only the verdict, never that bytes are retained.
+
+## ParseStream
+
+`ParseStream` serves a whole document session on one bidirectional stream.
+The bytes travel as `PdfChunk` messages, so a PDF is not capped by the
+message size limit, and a client can send them while it still reads its
+responses.
+
+1. The client sends `ParseStreamOpen` (families, page range and options for
+   the open's own parse, password, `doc_id`, optional `sha256` and
+   `declared_size`, and `header_only` for a session that asks for pages
+   later), then `PdfChunk` messages in order (`offset` is the bytes sent
+   before the chunk) until one has `last` set.
+2. Once the upload is complete the server answers the open as request 0:
+   a `ParseResponse` stream exactly as `Parse` would give it, header first
+   (header alone with `header_only`). That header is the first message of
+   the stream; a `sha256` the bytes do not match is
+   `LOAD_STATUS_HASH_MISMATCH` there.
+3. `ParsePages` and `RenderPages` carry a client-chosen nonzero
+   `request_id` and may be sent at any time after the open, mid-upload
+   included. They are answered like `Parse` and `Render` on the stream's
+   bytes, every response message tagged with the `request_id`. A server
+   may serve several at once, so messages of different requests can
+   interleave; within one request they keep the unary RPC's order.
+4. Every request ends with a `RequestDone` whose `RequestOutcome` says how
+   (`OK`, `CANCELLED`, `INVALID_ARGUMENT` where the unary RPC would refuse
+   the request, `NOT_LOADED` after a failed open, ...). A bad page request
+   fails that request, not the stream. Load failures stay typed in the
+   header or render head, as on the unary RPCs.
+5. `Cancel` with a `request_id` stops that request; `Cancel` without one
+   stops the stream. The stream ends with one `ParseStreamDone`
+   (`bytes_received`, the server's `sha256` of them, `cancelled`) after the
+   client half-closes, or right after a stream-wide `Cancel`.
+
+Protocol violations (no open first, a second open, chunks out of order or
+after the last, a half-close before the last chunk, a zero or reused
+`request_id`, an upload past `declared_size` or the server's size limit)
+fail the stream with a gRPC status. `Probe`, `Parse` and `Render` stay; a
+server that predates `ParseStream` answers `UNIMPLEMENTED`, and a client
+falls back to them.
 
 ## Service info and the demo shell
 
