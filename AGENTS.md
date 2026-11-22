@@ -2,7 +2,7 @@
 
 This repo is the wire contract for the PDF parser fleet: package
 `ai.protomolt.parse.pdf.v1`, service `PdfBackendService` (Probe, Parse,
-Render). It stands alone.
+Render, GetServiceInfo, ParseStream). It stands alone.
 
 - **Not the pipestream platform.** This project has nothing to do with
   `/work/main/pipestream-ai` or the `pipestream-protos` repo. Never add this
