@@ -82,6 +82,22 @@ fail the stream with a gRPC status. `Probe`, `Parse` and `Render` stay; a
 server that predates `ParseStream` answers `UNIMPLEMENTED`, and a client
 falls back to them.
 
+## Warnings
+
+An engine often reads a damaged document as far as it can: it rebuilds a
+cross-reference table, skips a stream that does not decode, draws a page
+without an image it could not read. The result is not the whole document,
+and the contract has one message for saying so, `ParseWarning` (the page
+it is about, the family it is about, the engine's message):
+
+- `Parse` carries them in `ParseTrailer.warnings`.
+- `Render` carries them in `RenderResponse.warnings`, on the message of
+  the raster they are about. A page the server cannot draw at all still
+  fails the call with a gRPC status.
+
+A server that predates `RenderResponse.warnings` sends none, so an empty
+list from an older build does not say the page was clean.
+
 ## Service info and the demo shell
 
 `GetServiceInfo` reports the backend's identity (`backend_name`,
